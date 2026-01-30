@@ -1,0 +1,40 @@
+# OS files
+.DS_Store
+*.swp
+*.swo
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv
+
+# Environment
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Database
+*.db
+*.sqlite
+
+# Audio files (optional - comment if you want to keep them)
+audio_files/*.mp3
+audio_files/*.wav
+transcriptions/*.json
+
+# Testing
+.pytest_cache/
+htmlcov/
+.coverage
+
