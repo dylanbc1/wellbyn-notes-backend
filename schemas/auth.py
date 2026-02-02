@@ -30,6 +30,13 @@ class UserResponse(BaseModel):
         from_attributes = True
 
 
+class PublicRegisterRequest(BaseModel):
+    """Schema para registro público (sin role)"""
+    email: EmailStr
+    full_name: str
+    password: str
+
+
 class LoginRequest(BaseModel):
     """Schema para login"""
     email: EmailStr

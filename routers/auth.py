@@ -8,7 +8,7 @@ from typing import Optional
 import logging
 
 from database import get_db
-from schemas.auth import UserCreate, UserResponse, LoginRequest, LoginResponse, SessionResponse
+from schemas.auth import UserCreate, UserResponse, LoginRequest, LoginResponse, SessionResponse, PublicRegisterRequest
 from services.auth_service import AuthService
 from models.user import User, Session
 
@@ -58,16 +58,24 @@ def get_current_administrator(current_user: User = Depends(get_current_user)) ->
 
 @router.post("/register", response_model=UserResponse, status_code=201)
 def register_user(
-    user_data: UserCreate,
+    user_data: PublicRegisterRequest,
     db: Session = Depends(get_db)
 ):
     """
-    Registra un nuevo usuario
+    Registro público de nuevo usuario
     
-    Nota: En producción, esto debería requerir autenticación de administrador
+    Crea un nuevo usuario con rol DOCTOR por defecto
     """
     try:
-        user = AuthService.create_user(db, user_data)
+        # Convertir PublicRegisterRequest a UserCreate con role DOCTOR
+        from models.user import UserRole
+        user_create = UserCreate(
+            email=user_data.email,
+            full_name=user_data.full_name,
+            password=user_data.password,
+            role=UserRole.DOCTOR
+        )
+        user = AuthService.create_user(db, user_create)
         return user
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
