@@ -10,12 +10,20 @@ import asyncio
 
 from database import get_db
 from config import settings
-from services.huggingface_service import HuggingFaceService
 from services.transcription_service import TranscriptionService
 from services.ai_medical_service import AIMedicalService
 
 import logging
 logger = logging.getLogger(__name__)
+
+# Import HuggingFaceService with error handling (Whisper)
+try:
+    from services.huggingface_service import HuggingFaceService
+    HUGGINGFACE_SERVICE_AVAILABLE = True
+except ImportError as e:
+    HUGGINGFACE_SERVICE_AVAILABLE = False
+    HuggingFaceService = None
+    logger.warning(f"HuggingFaceService (Whisper) not available: {e}")
 
 # Import DeepgramService with error handling
 try:
@@ -61,28 +69,64 @@ def get_transcription_service():
         if DEEPGRAM_SERVICE_AVAILABLE and settings.DEEPGRAM_API_KEY:
             logger.info("Using Deepgram (auto mode)")
             return DeepgramService(), "deepgram", f"deepgram/{settings.DEEPGRAM_MODEL}"
-        else:
+        elif HUGGINGFACE_SERVICE_AVAILABLE:
             logger.info("Using HuggingFace (auto mode, Deepgram not configured or unavailable)")
             return HuggingFaceService(), "huggingface", settings.AVAILABLE_MODELS[settings.DEFAULT_MODEL]["id"]
+        else:
+            raise HTTPException(
+                status_code=503,
+                detail="No transcription service available. Please configure Deepgram API key or install Whisper."
+            )
     
     # Explicit provider selection
     elif provider == "deepgram":
         if not DEEPGRAM_SERVICE_AVAILABLE:
-            logger.warning("Deepgram requested but service not available. Falling back to HuggingFace.")
-            return HuggingFaceService(), "huggingface", settings.AVAILABLE_MODELS[settings.DEFAULT_MODEL]["id"]
+            if HUGGINGFACE_SERVICE_AVAILABLE:
+                logger.warning("Deepgram requested but service not available. Falling back to HuggingFace.")
+                return HuggingFaceService(), "huggingface", settings.AVAILABLE_MODELS[settings.DEFAULT_MODEL]["id"]
+            else:
+                raise HTTPException(
+                    status_code=503,
+                    detail="Deepgram service not available and HuggingFace (Whisper) is not installed."
+                )
         if not settings.DEEPGRAM_API_KEY:
-            logger.warning("Deepgram requested but API key not configured. Falling back to HuggingFace.")
-            return HuggingFaceService(), "huggingface", settings.AVAILABLE_MODELS[settings.DEFAULT_MODEL]["id"]
+            if HUGGINGFACE_SERVICE_AVAILABLE:
+                logger.warning("Deepgram requested but API key not configured. Falling back to HuggingFace.")
+                return HuggingFaceService(), "huggingface", settings.AVAILABLE_MODELS[settings.DEFAULT_MODEL]["id"]
+            else:
+                raise HTTPException(
+                    status_code=503,
+                    detail="Deepgram API key not configured and HuggingFace (Whisper) is not installed."
+                )
         logger.info("Using Deepgram (explicit)")
         return DeepgramService(), "deepgram", f"deepgram/{settings.DEEPGRAM_MODEL}"
     
     elif provider == "huggingface":
+        if not HUGGINGFACE_SERVICE_AVAILABLE:
+            if DEEPGRAM_SERVICE_AVAILABLE and settings.DEEPGRAM_API_KEY:
+                logger.warning("HuggingFace requested but not available. Falling back to Deepgram.")
+                return DeepgramService(), "deepgram", f"deepgram/{settings.DEEPGRAM_MODEL}"
+            else:
+                raise HTTPException(
+                    status_code=503,
+                    detail="HuggingFace (Whisper) service not available. Please install openai-whisper or configure Deepgram."
+                )
         logger.info("Using HuggingFace (explicit)")
         return HuggingFaceService(), "huggingface", settings.AVAILABLE_MODELS[settings.DEFAULT_MODEL]["id"]
     
     else:
-        logger.warning(f"Unknown provider '{provider}'. Using HuggingFace as fallback.")
-        return HuggingFaceService(), "huggingface", settings.AVAILABLE_MODELS[settings.DEFAULT_MODEL]["id"]
+        # Fallback logic
+        if DEEPGRAM_SERVICE_AVAILABLE and settings.DEEPGRAM_API_KEY:
+            logger.warning(f"Unknown provider '{provider}'. Using Deepgram as fallback.")
+            return DeepgramService(), "deepgram", f"deepgram/{settings.DEEPGRAM_MODEL}"
+        elif HUGGINGFACE_SERVICE_AVAILABLE:
+            logger.warning(f"Unknown provider '{provider}'. Using HuggingFace as fallback.")
+            return HuggingFaceService(), "huggingface", settings.AVAILABLE_MODELS[settings.DEFAULT_MODEL]["id"]
+        else:
+            raise HTTPException(
+                status_code=503,
+                detail="No transcription service available. Please configure Deepgram API key or install Whisper."
+            )
 
 
 def filter_transcription_for_role(transcription, user: User):

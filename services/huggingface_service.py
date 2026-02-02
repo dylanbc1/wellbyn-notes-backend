@@ -2,7 +2,6 @@
 Local Whisper transcription service
 """
 
-import whisper
 import tempfile
 import os
 from typing import Dict
@@ -10,6 +9,15 @@ from config import settings
 import logging
 
 logger = logging.getLogger(__name__)
+
+# Try to import whisper, but make it optional
+try:
+    import whisper
+    WHISPER_AVAILABLE = True
+except ImportError as e:
+    WHISPER_AVAILABLE = False
+    whisper = None
+    logger.warning(f"Whisper not available: {e}. Install openai-whisper to use local transcription.")
 
 
 class HuggingFaceService:
@@ -23,6 +31,8 @@ class HuggingFaceService:
     
     def _load_model(self):
         """Load Whisper model (lazy loading)"""
+        if not WHISPER_AVAILABLE:
+            raise ImportError("Whisper is not installed. Please install openai-whisper to use local transcription.")
         if self.model is None:
             logger.info(f"Loading Whisper model: {self.model_name}")
             self.model = whisper.load_model(self.model_name)
