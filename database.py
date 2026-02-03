@@ -37,6 +37,21 @@ def init_db():
     """
     Inicializar base de datos (crear tablas)
     """
-    import models
-    Base.metadata.create_all(bind=engine)
+    try:
+        from sqlalchemy import text
+        # Test connection first
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        
+        # Import models to register them
+        import models
+        
+        # Create tables
+        Base.metadata.create_all(bind=engine)
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Database initialization error: {e}")
+        # Re-raise to let caller handle it
+        raise
 

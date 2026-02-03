@@ -118,6 +118,31 @@ Visita: `https://tu-proyecto.up.railway.app/docs`
 
 ## Solución de Problemas
 
+### Error: "Application failed to respond"
+
+Si ves este error al desplegar:
+
+1. **Verifica las variables de entorno:**
+   - `DATABASE_URL` debe estar configurada (Railway la crea automáticamente si agregas PostgreSQL)
+   - Verifica que todas las variables necesarias estén configuradas
+
+2. **Revisa los logs de despliegue:**
+   - En Railway, ve a "Deployments" → selecciona el deployment más reciente
+   - Revisa los logs para ver errores específicos
+   - Busca errores de conexión a la base de datos o importación de módulos
+
+3. **Verifica que PostgreSQL esté agregado:**
+   - Railway debe tener un servicio PostgreSQL agregado
+   - La variable `DATABASE_URL` debe estar configurada automáticamente
+
+4. **Verifica el puerto:**
+   - El archivo `railway.toml` ya está configurado con `port = 8000`
+   - Cuando Railway pida el puerto, usa **8000**
+   - Railway usará su propia variable `PORT` internamente
+
+5. **Ejecuta las migraciones:**
+   - Después del primer despliegue exitoso, ejecuta las migraciones desde la terminal de Railway
+
 ### Error: "Port not specified"
 
 Si Railway no detecta el puerto automáticamente:

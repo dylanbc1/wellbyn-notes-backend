@@ -31,14 +31,16 @@ async def lifespan(app: FastAPI):
     logger.info(f"Model: {settings.DEFAULT_MODEL}")
     logger.info(f"Database URL: {settings.DATABASE_URL}")
     
-    # Initialize database
+    # Initialize database (non-blocking)
     logger.info("Initializing database...")
     try:
         init_db()
         logger.info("Database ready")
     except Exception as e:
         logger.error(f"Error initializing database: {e}")
-        raise
+        logger.warning("Application will continue, but database operations may fail")
+        # Don't raise - allow app to start even if DB init fails
+        # This allows health check to work and logs to be visible
     
     yield
     
@@ -70,6 +72,17 @@ app.include_router(health_router)
 app.include_router(auth_router)
 app.include_router(transcription_router)
 app.include_router(ehr_router)
+
+
+# Root endpoint (simple check)
+@app.get("/")
+def root():
+    """Simple root endpoint"""
+    return {
+        "status": "ok",
+        "message": "Wellbyn Notes API is running",
+        "version": settings.APP_VERSION
+    }
 
 
 if __name__ == "__main__":
