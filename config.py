@@ -24,11 +24,28 @@ class Settings(BaseSettings):
     PORT: int = int(os.getenv("PORT", "8000"))
     
     # CORS
-    _allowed_origins = os.getenv("ALLOWED_ORIGINS", "")
-    ALLOWED_ORIGINS: list = (
-        _allowed_origins.split(",") if _allowed_origins 
-        else ["http://localhost:3000", "http://localhost:5173", "http://127.0.0.1:3000", "http://127.0.0.1:5173"]
-    )
+    _allowed_origins = os.getenv("ALLOWED_ORIGINS", "").strip()
+    if _allowed_origins:
+        # Si está configurado, usar los orígenes especificados
+        ALLOWED_ORIGINS: list = [origin.strip() for origin in _allowed_origins.split(",") if origin.strip()]
+        # Si después de procesar está vacío, usar defaults
+        if not ALLOWED_ORIGINS:
+            ALLOWED_ORIGINS = [
+                "http://localhost:3000",
+                "http://localhost:5173",
+                "http://127.0.0.1:3000",
+                "http://127.0.0.1:5173",
+                "https://wellbyn-notes-frontend-production.up.railway.app",
+            ]
+    else:
+        # Por defecto, permitir localhost y el frontend de producción
+        ALLOWED_ORIGINS: list = [
+            "http://localhost:3000",
+            "http://localhost:5173",
+            "http://127.0.0.1:3000",
+            "http://127.0.0.1:5173",
+            "https://wellbyn-notes-frontend-production.up.railway.app",
+        ]
     
     # Database
     DATABASE_URL: str = os.getenv(

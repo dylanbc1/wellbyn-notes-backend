@@ -15,6 +15,7 @@ echo "PORT: ${PORT:-NOT_SET}"
 echo "DATABASE_URL: ${DATABASE_URL:0:50}..." 
 echo "GEMINI_KEY: ${GEMINI_KEY:+SET}" 
 echo "DEEPGRAM_API_KEY: ${DEEPGRAM_API_KEY:+SET}"
+echo "ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-NOT_SET}"
 echo ""
 
 # Verificar que PORT esté definido, usar 8000 como fallback

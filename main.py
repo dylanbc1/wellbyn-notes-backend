@@ -41,6 +41,8 @@ async def lifespan(app: FastAPI):
     logger.info(f"Database URL: {settings.DATABASE_URL[:50]}...")
     logger.info(f"Python version: {sys.version}")
     logger.info(f"PORT env var: {os.getenv('PORT', 'NOT_SET')}")
+    logger.info(f"CORS Allowed Origins: {settings.ALLOWED_ORIGINS}")
+    logger.info(f"ALLOWED_ORIGINS env var: {os.getenv('ALLOWED_ORIGINS', 'NOT_SET')}")
     
     # Initialize database (non-blocking)
     logger.info("LIFESPAN: Initializing database...")
@@ -76,12 +78,14 @@ app = FastAPI(
 )
 
 # CORS
+logger.info(f"CORS: Allowed origins: {settings.ALLOWED_ORIGINS}")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 # Middleware para logging de requests
