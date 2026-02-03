@@ -52,22 +52,22 @@ SECRET_KEY=tu-clave-secreta-muy-segura-aqui
 
 ### 4. Configurar el Puerto (IMPORTANTE)
 
-**Railway detecta automáticamente el puerto desde:**
-- La variable de entorno `PORT` (proporcionada automáticamente por Railway)
-- El archivo `railway.toml` que ya está configurado
+**El archivo `railway.toml` ya está configurado con:**
+- `[networking] port = 8000` - Esto le dice a Railway qué puerto esperar
+- `startCommand` usa `--port $PORT` - Railway proporciona `PORT` automáticamente
 
 **Si Railway te pide un "Target Port" al generar el dominio:**
 
-Esto es normal. Railway necesita saber qué puerto está escuchando tu aplicación para enrutar el tráfico. Sin embargo:
+1. **Usa el puerto 8000** cuando Railway te lo pida
+2. El archivo `railway.toml` ya tiene `[networking] port = 8000` configurado
+3. Railway internamente usará su propia variable `PORT` (puede ser diferente como 8080, 3000, etc.)
+4. Tu código lee `$PORT` automáticamente, así que funcionará correctamente
 
-1. **El código ya está configurado** para usar `$PORT` automáticamente (ver `config.py` línea 24)
-2. **Railway proporciona `PORT` automáticamente** cuando despliegas
-3. **Si Railway te pide un "target port":**
-   - Puedes usar **8000** como referencia
-   - Pero Railway internamente usará su propia variable `PORT` (que puede ser diferente, como 8080, 3000, etc.)
-   - El código leerá `$PORT` automáticamente, así que funcionará correctamente
-
-**Resumen:** Si Railway pide un puerto, usa **8000**, pero no te preocupes - Railway y tu código manejarán el puerto correcto automáticamente.
+**Nota importante:** 
+- El puerto 8000 en `railway.toml` es solo una referencia para Railway
+- Railway asignará su propio puerto dinámico a través de la variable `PORT`
+- Tu aplicación escuchará en el puerto que Railway asigne (a través de `$PORT`)
+- Railway enrutará el tráfico desde el puerto público al puerto interno correctamente
 
 ### 5. Generar Dominio Público
 
