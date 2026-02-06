@@ -56,6 +56,16 @@ def get_current_administrator(current_user: User = Depends(get_current_user)) ->
     return current_user
 
 
+@router.get("/register/test")
+def test_register_endpoint():
+    """Endpoint de prueba para verificar que el router está funcionando"""
+    return {
+        "status": "ok",
+        "message": "Register endpoint is accessible",
+        "path": "/api/auth/register"
+    }
+
+
 @router.post("/register", response_model=UserResponse, status_code=201)
 def register_user(
     user_data: PublicRegisterRequest,
@@ -64,21 +74,32 @@ def register_user(
     """
     Registro público de nuevo usuario
     
-    Crea un nuevo usuario con rol DOCTOR por defecto
+    Crea un nuevo usuario con rol DOCTOR por defecto.
+    Permite seleccionar rol solo para desarrollo.
     """
+    logger.info(f"Register request received: email={user_data.email}, role={user_data.role}")
     try:
-        # Convertir PublicRegisterRequest a UserCreate con role DOCTOR
+        # Convertir PublicRegisterRequest a UserCreate
         from models.user import UserRole
+        # Usar el rol proporcionado o DOCTOR por defecto
+        role = user_data.role if user_data.role else UserRole.DOCTOR
+        logger.info(f"Creating user with role: {role}")
+        
         user_create = UserCreate(
             email=user_data.email,
             full_name=user_data.full_name,
             password=user_data.password,
-            role=UserRole.DOCTOR
+            role=role
         )
         user = AuthService.create_user(db, user_create)
+        logger.info(f"User created successfully: id={user.id}, email={user.email}, role={user.role}")
         return user
     except ValueError as e:
+        logger.error(f"Error creating user: {e}")
         raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error creating user: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
 @router.post("/login", response_model=LoginResponse)

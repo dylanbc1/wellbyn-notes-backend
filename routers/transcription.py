@@ -685,3 +685,354 @@ async def websocket_transcription_stream(websocket: WebSocket):
             pass
         logger.info("WebSocket connection closed")
 
+
+# ==================== NEW FEATURES ENDPOINTS ====================
+
+@router.post("/{transcription_id}/soap/map-continuous")
+def map_soap_continuous(
+    transcription_id: int,
+    transcription_text: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Mapea continuamente la transcripción a secciones SOAP (Live Clinical Transcription)
+    """
+    transcription = TranscriptionService.get_transcription(db, transcription_id)
+    
+    if not transcription:
+        raise HTTPException(status_code=404, detail="Transcription not found")
+    
+    ai_service = AIMedicalService()
+    existing_soap = transcription.soap_sections if transcription.soap_sections else None
+    soap_sections = ai_service.map_to_soap_continuous(transcription_text, existing_soap)
+    
+    # Update raw transcript
+    if transcription.raw_transcript:
+        transcription.raw_transcript += f"\n{transcription_text}"
+    else:
+        transcription.raw_transcript = transcription_text
+    
+    updated = TranscriptionService.update_soap_sections(db, transcription_id, soap_sections)
+    
+    if not updated:
+        raise HTTPException(status_code=500, detail="Failed to update SOAP sections")
+    
+    # Also update documentation completeness
+    completeness = ai_service.check_documentation_completeness(transcription_text, soap_sections)
+    TranscriptionService.update_documentation_completeness(db, transcription_id, completeness)
+    
+    return {
+        "success": True,
+        "soap_sections": soap_sections,
+        "documentation_completeness": completeness
+    }
+
+
+@router.put("/{transcription_id}/soap/section/{section_name}")
+def update_soap_section(
+    transcription_id: int,
+    section_name: str,
+    section_data: Dict[str, Any],
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Actualiza una sección SOAP específica (permite edición inline y bloqueo)
+    """
+    if section_name not in ["subjective", "objective", "assessment", "plan"]:
+        raise HTTPException(status_code=400, detail="Invalid section name")
+    
+    transcription = TranscriptionService.get_transcription(db, transcription_id)
+    
+    if not transcription:
+        raise HTTPException(status_code=404, detail="Transcription not found")
+    
+    soap_sections = transcription.soap_sections if transcription.soap_sections else {
+        "subjective": {"text": "", "locked": False},
+        "objective": {"text": "", "locked": False},
+        "assessment": {"text": "", "locked": False},
+        "plan": {"text": "", "locked": False}
+    }
+    
+    # Update section
+    if "text" in section_data:
+        soap_sections[section_name]["text"] = section_data["text"]
+    if "locked" in section_data:
+        soap_sections[section_name]["locked"] = section_data["locked"]
+    
+    updated = TranscriptionService.update_soap_sections(db, transcription_id, soap_sections)
+    
+    if not updated:
+        raise HTTPException(status_code=500, detail="Failed to update SOAP section")
+    
+    return {
+        "success": True,
+        "soap_sections": soap_sections
+    }
+
+
+@router.get("/{transcription_id}/coverage-indicator")
+def get_coverage_indicator(
+    transcription_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Obtiene el indicador de completitud de documentación clínica
+    """
+    transcription = TranscriptionService.get_transcription(db, transcription_id)
+    
+    if not transcription:
+        raise HTTPException(status_code=404, detail="Transcription not found")
+    
+    completeness = transcription.documentation_completeness if transcription.documentation_completeness else {
+        "chief_complaint": "missing",
+        "duration": "missing",
+        "severity": "missing",
+        "location": "missing",
+        "assessment": "missing",
+        "plan": "missing"
+    }
+    
+    return {
+        "documentation_completeness": completeness
+    }
+
+
+@router.get("/{transcription_id}/nudges")
+def get_clarification_nudges(
+    transcription_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Obtiene prompts no intrusivos para clarificación y desambiguación diagnóstica
+    """
+    transcription = TranscriptionService.get_transcription(db, transcription_id)
+    
+    if not transcription:
+        raise HTTPException(status_code=404, detail="Transcription not found")
+    
+    ai_service = AIMedicalService()
+    nudges = ai_service.generate_clarification_nudges(
+        transcription.text,
+        transcription.soap_sections,
+        transcription.documentation_completeness
+    )
+    
+    return {
+        "nudges": nudges
+    }
+
+
+@router.post("/{transcription_id}/final-note/approve")
+def approve_final_note(
+    transcription_id: int,
+    final_note: str,
+    note_format: str = "soap",
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Aprueba la nota clínica final (Doctor-Approved)
+    """
+    if current_user.role != UserRole.DOCTOR:
+        raise HTTPException(status_code=403, detail="Only doctors can approve notes")
+    
+    if note_format not in ["soap", "narrative", "problem-oriented"]:
+        raise HTTPException(status_code=400, detail="Invalid note format")
+    
+    transcription = TranscriptionService.get_transcription(db, transcription_id)
+    
+    if not transcription:
+        raise HTTPException(status_code=404, detail="Transcription not found")
+    
+    updated = TranscriptionService.update_final_note(
+        db,
+        transcription_id,
+        final_note,
+        note_format,
+        current_user.id
+    )
+    
+    if not updated:
+        raise HTTPException(status_code=500, detail="Failed to approve note")
+    
+    return {
+        "success": True,
+        "message": "Note approved successfully",
+        "transcription_id": transcription_id
+    }
+
+
+@router.get("/{transcription_id}/coding-preview")
+def get_coding_preview(
+    transcription_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Obtiene vista previa de códigos con niveles de confianza y advertencias
+    """
+    transcription = TranscriptionService.get_transcription(db, transcription_id)
+    
+    if not transcription:
+        raise HTTPException(status_code=404, detail="Transcription not found")
+    
+    if not transcription.medical_note:
+        raise HTTPException(status_code=400, detail="Medical note must be generated first")
+    
+    ai_service = AIMedicalService()
+    icd10_codes = ai_service.suggest_icd10_codes_enhanced(transcription.medical_note, transcription.text)
+    cpt_codes = ai_service.suggest_cpt_codes_enhanced(transcription.medical_note, transcription.text)
+    
+    return {
+        "icd10_codes": icd10_codes,
+        "cpt_codes": cpt_codes
+    }
+
+
+@router.post("/{transcription_id}/patient-context")
+def update_patient_context(
+    transcription_id: int,
+    patient_context: Dict[str, Any],
+    patient_id: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Actualiza el contexto del paciente desde EHR (Context Panel)
+    """
+    transcription = TranscriptionService.get_transcription(db, transcription_id)
+    
+    if not transcription:
+        raise HTTPException(status_code=404, detail="Transcription not found")
+    
+    updated = TranscriptionService.update_patient_context(db, transcription_id, patient_context, patient_id)
+    
+    if not updated:
+        raise HTTPException(status_code=500, detail="Failed to update patient context")
+    
+    return {
+        "success": True,
+        "patient_context": patient_context
+    }
+
+
+@router.post("/{transcription_id}/patient-summary")
+def generate_patient_summary(
+    transcription_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Genera resumen de visita en lenguaje simple para pacientes
+    """
+    transcription = TranscriptionService.get_transcription(db, transcription_id)
+    
+    if not transcription:
+        raise HTTPException(status_code=404, detail="Transcription not found")
+    
+    if not transcription.medical_note:
+        raise HTTPException(status_code=400, detail="Medical note must be generated first")
+    
+    ai_service = AIMedicalService()
+    patient_summary = ai_service.generate_patient_summary(transcription.medical_note, transcription.text)
+    next_steps = ai_service.generate_next_steps(transcription.medical_note, transcription.text)
+    
+    updated = TranscriptionService.update_patient_summary(db, transcription_id, patient_summary, next_steps)
+    
+    if not updated:
+        raise HTTPException(status_code=500, detail="Failed to update patient summary")
+    
+    return {
+        "success": True,
+        "patient_summary": patient_summary,
+        "next_steps": next_steps
+    }
+
+
+@router.post("/{transcription_id}/share-token")
+def generate_share_token(
+    transcription_id: int,
+    expires_days: int = 30,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Genera token compartible para resumen de visita
+    """
+    transcription = TranscriptionService.get_transcription(db, transcription_id)
+    
+    if not transcription:
+        raise HTTPException(status_code=404, detail="Transcription not found")
+    
+    token = TranscriptionService.generate_share_token(db, transcription_id, expires_days)
+    
+    if not token:
+        raise HTTPException(status_code=500, detail="Failed to generate share token")
+    
+    return {
+        "success": True,
+        "share_token": token,
+        "expires_days": expires_days
+    }
+
+
+@router.get("/share/{share_token}")
+def get_shared_summary(
+    share_token: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Obtiene resumen compartible de visita (acceso público con token)
+    """
+    transcription = TranscriptionService.get_by_share_token(db, share_token)
+    
+    if not transcription:
+        raise HTTPException(status_code=404, detail="Share token invalid or expired")
+    
+    return {
+        "patient_summary": transcription.patient_summary,
+        "next_steps": transcription.next_steps,
+        "visit_date": transcription.visit_date,
+        "share_expires_at": transcription.share_expires_at
+    }
+
+
+@router.get("/patient/{patient_id}/history")
+def get_patient_visit_history(
+    patient_id: str,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Obtiene timeline de historial de visitas del paciente (Visit History Timeline)
+    """
+    transcriptions = db.query(Transcription).filter(
+        Transcription.patient_id == patient_id,
+        Transcription.doctor_approved == True  # Solo visitas aprobadas
+    ).order_by(
+        Transcription.visit_date.desc() if Transcription.visit_date else Transcription.created_at.desc()
+    ).offset(skip).limit(limit).all()
+    
+    return {
+        "patient_id": patient_id,
+        "total": len(transcriptions),
+        "visits": [
+            {
+                "id": t.id,
+                "visit_date": t.visit_date or t.created_at,
+                "visit_duration_minutes": t.visit_duration_minutes,
+                "patient_summary": t.patient_summary,
+                "next_steps": t.next_steps,
+                "doctor_approved_at": t.doctor_approved_at,
+                "created_at": t.created_at
+            }
+            for t in transcriptions
+        ]
+    }
+

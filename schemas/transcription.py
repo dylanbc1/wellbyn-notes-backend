@@ -52,6 +52,24 @@ class TranscriptionResponse(BaseModel):
     cpt_codes: Optional[List[Dict[str, Any]]] = None
     cms1500_form_data: Optional[Dict[str, Any]] = None
     workflow_status: str = "transcribed"
+    # New fields
+    soap_sections: Optional[Dict[str, Any]] = None
+    raw_transcript: Optional[str] = None
+    documentation_completeness: Optional[Dict[str, str]] = None
+    final_note: Optional[str] = None
+    note_format: Optional[str] = None
+    doctor_approved: bool = False
+    doctor_approved_at: Optional[datetime] = None
+    doctor_id: Optional[int] = None
+    coding_preview: Optional[Dict[str, Any]] = None
+    patient_context: Optional[Dict[str, Any]] = None
+    patient_id: Optional[str] = None
+    visit_date: Optional[datetime] = None
+    visit_duration_minutes: Optional[int] = None
+    patient_summary: Optional[str] = None
+    next_steps: Optional[List[Dict[str, Any]]] = None
+    share_token: Optional[str] = None
+    share_expires_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     
@@ -73,6 +91,20 @@ class TranscriptionResponseDoctor(BaseModel):
     # icd10_codes y cpt_codes NO se incluyen para doctores
     # cms1500_form_data NO se incluye para doctores
     workflow_status: str = "transcribed"
+    # New fields for doctors
+    soap_sections: Optional[Dict[str, Any]] = None
+    raw_transcript: Optional[str] = None
+    documentation_completeness: Optional[Dict[str, str]] = None
+    final_note: Optional[str] = None
+    note_format: Optional[str] = None
+    doctor_approved: bool = False
+    doctor_approved_at: Optional[datetime] = None
+    patient_context: Optional[Dict[str, Any]] = None
+    patient_id: Optional[str] = None
+    visit_date: Optional[datetime] = None
+    visit_duration_minutes: Optional[int] = None
+    patient_summary: Optional[str] = None
+    next_steps: Optional[List[Dict[str, Any]]] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     

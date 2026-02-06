@@ -31,10 +31,11 @@ class UserResponse(BaseModel):
 
 
 class PublicRegisterRequest(BaseModel):
-    """Schema para registro público (sin role)"""
+    """Schema para registro público (con role opcional para desarrollo)"""
     email: EmailStr
     full_name: str
     password: str
+    role: Optional[UserRole] = None  # Opcional, solo para desarrollo
 
 
 class LoginRequest(BaseModel):

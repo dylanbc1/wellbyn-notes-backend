@@ -162,4 +162,121 @@ class TranscriptionService:
             return transcription
         
         return None
+    
+    @staticmethod
+    def update_soap_sections(db: Session, transcription_id: int, soap_sections: Dict[str, Any]) -> Optional[Transcription]:
+        """
+        Update SOAP sections for a transcription
+        """
+        transcription = db.query(Transcription).filter(Transcription.id == transcription_id).first()
+        
+        if transcription:
+            transcription.soap_sections = soap_sections
+            db.commit()
+            db.refresh(transcription)
+            return transcription
+        
+        return None
+    
+    @staticmethod
+    def update_documentation_completeness(db: Session, transcription_id: int, completeness: Dict[str, str]) -> Optional[Transcription]:
+        """
+        Update documentation completeness status
+        """
+        transcription = db.query(Transcription).filter(Transcription.id == transcription_id).first()
+        
+        if transcription:
+            transcription.documentation_completeness = completeness
+            db.commit()
+            db.refresh(transcription)
+            return transcription
+        
+        return None
+    
+    @staticmethod
+    def update_final_note(db: Session, transcription_id: int, final_note: str, note_format: str, doctor_id: int) -> Optional[Transcription]:
+        """
+        Update final approved note
+        """
+        from datetime import datetime
+        
+        transcription = db.query(Transcription).filter(Transcription.id == transcription_id).first()
+        
+        if transcription:
+            transcription.final_note = final_note
+            transcription.note_format = note_format
+            transcription.doctor_approved = True
+            transcription.doctor_approved_at = datetime.now()
+            transcription.doctor_id = doctor_id
+            db.commit()
+            db.refresh(transcription)
+            return transcription
+        
+        return None
+    
+    @staticmethod
+    def update_patient_context(db: Session, transcription_id: int, patient_context: Dict[str, Any], patient_id: Optional[str] = None) -> Optional[Transcription]:
+        """
+        Update patient context from EHR
+        """
+        transcription = db.query(Transcription).filter(Transcription.id == transcription_id).first()
+        
+        if transcription:
+            transcription.patient_context = patient_context
+            if patient_id:
+                transcription.patient_id = patient_id
+            db.commit()
+            db.refresh(transcription)
+            return transcription
+        
+        return None
+    
+    @staticmethod
+    def update_patient_summary(db: Session, transcription_id: int, patient_summary: str, next_steps: List[Dict[str, Any]]) -> Optional[Transcription]:
+        """
+        Update patient summary and next steps
+        """
+        transcription = db.query(Transcription).filter(Transcription.id == transcription_id).first()
+        
+        if transcription:
+            transcription.patient_summary = patient_summary
+            transcription.next_steps = next_steps
+            db.commit()
+            db.refresh(transcription)
+            return transcription
+        
+        return None
+    
+    @staticmethod
+    def generate_share_token(db: Session, transcription_id: int, expires_days: int = 30) -> Optional[str]:
+        """
+        Generate shareable token for visit summary
+        """
+        import secrets
+        from datetime import datetime, timedelta
+        
+        transcription = db.query(Transcription).filter(Transcription.id == transcription_id).first()
+        
+        if transcription:
+            token = secrets.token_urlsafe(32)
+            transcription.share_token = token
+            transcription.share_expires_at = datetime.now() + timedelta(days=expires_days)
+            db.commit()
+            return token
+        
+        return None
+    
+    @staticmethod
+    def get_by_share_token(db: Session, share_token: str) -> Optional[Transcription]:
+        """
+        Get transcription by share token (for patient access)
+        """
+        from datetime import datetime
+        
+        transcription = db.query(Transcription).filter(
+            Transcription.share_token == share_token,
+            Transcription.share_expires_at > datetime.now()
+        ).first()
+        
+        return transcription
 

@@ -13,6 +13,7 @@ import time
 from config import settings
 from database import init_db
 from routers import transcription_router, health_router, ehr_router, auth_router
+from routers.metrics import router as metrics_router
 
 # Configurar logging
 logging.basicConfig(
@@ -78,7 +79,13 @@ app = FastAPI(
 )
 
 # CORS
+print("=" * 50)
+print("CORS CONFIGURATION:")
+print(f"Allowed origins: {settings.ALLOWED_ORIGINS}")
+print(f"Type: {type(settings.ALLOWED_ORIGINS)}")
+print("=" * 50)
 logger.info(f"CORS: Allowed origins: {settings.ALLOWED_ORIGINS}")
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.ALLOWED_ORIGINS,
@@ -87,31 +94,102 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["*"],
 )
+print("✓ CORS middleware added")
+logger.info("✓ CORS middleware added")
 
 # Middleware para logging de requests
 class LoggingMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         start_time = time.time()
         client_ip = request.client.host if request.client else "unknown"
-        logger.info(f"REQUEST: {request.method} {request.url.path} from {client_ip}")
+        origin = request.headers.get("origin", "no origin")
+        logger.info(f"REQUEST: {request.method} {request.url.path} from {client_ip}, origin: {origin}")
+        print(f"🌐 Request: {request.method} {request.url.path} | Origin: {origin} | IP: {client_ip}")
         response = await call_next(request)
         process_time = time.time() - start_time
-        logger.info(f"RESPONSE: {request.method} {request.url.path} - Status: {response.status_code} - Time: {process_time:.3f}s")
+        cors_headers = {k: v for k, v in response.headers.items() if 'access-control' in k.lower()}
+        logger.info(f"RESPONSE: {request.method} {request.url.path} - Status: {response.status_code} - Time: {process_time:.3f}s - CORS headers: {cors_headers}")
+        print(f"📤 Response: {response.status_code} | CORS headers: {cors_headers}")
         return response
 
 app.add_middleware(LoggingMiddleware)
 
 # Register routers
+print("=" * 50)
+print("REGISTERING ROUTERS...")
+print("=" * 50)
 logger.info("Registering routers...")
-app.include_router(health_router)
-logger.info("✓ Health router registered")
-app.include_router(auth_router)
-logger.info("✓ Auth router registered")
-app.include_router(transcription_router)
-logger.info("✓ Transcription router registered")
-app.include_router(ehr_router)
-logger.info("✓ EHR router registered")
+
+try:
+    print("1. Registering health router...")
+    logger.info("1. Registering health router...")
+    app.include_router(health_router)
+    print("   ✓ Health router registered")
+    logger.info("✓ Health router registered")
+except Exception as e:
+    print(f"   ✗ ERROR registering health router: {e}")
+    logger.error(f"ERROR registering health router: {e}")
+
+try:
+    print("2. Registering auth router...")
+    logger.info("2. Registering auth router...")
+    app.include_router(auth_router)
+    print(f"   ✓ Auth router registered (prefix: {auth_router.prefix})")
+    logger.info(f"✓ Auth router registered (prefix: {auth_router.prefix})")
+    # Listar rutas del auth router
+    auth_routes = [route.path for route in auth_router.routes]
+    print(f"   Auth routes: {auth_routes}")
+    logger.info(f"Auth routes: {auth_routes}")
+except Exception as e:
+    print(f"   ✗ ERROR registering auth router: {e}")
+    logger.error(f"ERROR registering auth router: {e}")
+    import traceback
+    traceback.print_exc()
+
+try:
+    print("3. Registering transcription router...")
+    logger.info("3. Registering transcription router...")
+    app.include_router(transcription_router)
+    print("   ✓ Transcription router registered")
+    logger.info("✓ Transcription router registered")
+except Exception as e:
+    print(f"   ✗ ERROR registering transcription router: {e}")
+    logger.error(f"ERROR registering transcription router: {e}")
+
+try:
+    print("4. Registering EHR router...")
+    logger.info("4. Registering EHR router...")
+    app.include_router(ehr_router)
+    print("   ✓ EHR router registered")
+    logger.info("✓ EHR router registered")
+except Exception as e:
+    print(f"   ✗ ERROR registering EHR router: {e}")
+    logger.error(f"ERROR registering EHR router: {e}")
+
+try:
+    print("5. Registering metrics router...")
+    logger.info("5. Registering metrics router...")
+    app.include_router(metrics_router)
+    print("   ✓ Metrics router registered")
+    logger.info("✓ Metrics router registered")
+except Exception as e:
+    print(f"   ✗ ERROR registering metrics router: {e}")
+    logger.error(f"ERROR registering metrics router: {e}")
+
+print("=" * 50)
+print("All routers registered successfully ✅")
+print("=" * 50)
 logger.info("All routers registered successfully ✅")
+
+# Verificar todas las rutas registradas
+print("\nREGISTERED ROUTES:")
+print("-" * 50)
+for route in app.routes:
+    if hasattr(route, 'path') and hasattr(route, 'methods'):
+        methods = ', '.join(route.methods) if route.methods else 'N/A'
+        print(f"  {methods:10} {route.path}")
+logger.info(f"Total routes registered: {len([r for r in app.routes if hasattr(r, 'path')])}")
+print("-" * 50)
 
 
 # Root endpoint (simple check)
